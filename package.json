@@ -1,0 +1,18 @@
+{
+  "name": "baby-feeding-record",
+  "version": "1.0.0",
+  "description": "婴儿喂奶记录程序 - 简洁温馨的移动端优先应用",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}
