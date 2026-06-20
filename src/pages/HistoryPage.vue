@@ -1,5 +1,21 @@
 <template>
   <div class="history-page page-container">
+    <!-- 顶部操作栏 -->
+    <div class="header-bar">
+      <div class="header-left">
+        <div class="baby-info" @click="$emit('openBabyManager')">
+          <span class="baby-avatar">{{ activeBaby.avatar }}</span>
+          <span class="baby-name">{{ activeBaby.name }}</span>
+          <span class="caret">▼</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="icon-btn" @click="$emit('toggleTheme')" :title="isDark ? '浅色模式' : '夜间模式'">
+          {{ isDark ? '☀️' : '🌙' }}
+        </button>
+      </div>
+    </div>
+
     <!-- 页面标题和今日统计 -->
     <div class="header">
       <h1 class="page-title">喂奶记录</h1>
@@ -65,12 +81,24 @@
  * 2. 列表展示所有喂奶记录（按时间倒序）
  * 3. 支持删除单条记录
  * 4. 空状态展示
+ * 5. 支持多宝宝切换和主题切换
  */
 import { ref, computed, onMounted } from 'vue'
-import { getRecords, deleteRecord, getTodayTotal, getTodayCount } from '../utils/storage.js'
+import { getRecords, deleteRecord, getTodayTotal, getTodayCount, getActiveBaby } from '../utils/storage.js'
+
+defineProps({
+  isDark: {
+    type: Boolean,
+    default: false
+  }
+})
+
+defineEmits(['openBabyManager', 'toggleTheme'])
 
 // 记录列表
 const records = ref([])
+// 当前宝宝
+const activeBaby = ref(getActiveBaby())
 
 // 删除相关
 const showDeleteModal = ref(false)
@@ -97,6 +125,7 @@ function loadRecords() {
   const list = getRecords()
   list.sort((a, b) => b.timestamp - a.timestamp)
   records.value = list
+  activeBaby.value = getActiveBaby()
 }
 
 /**
@@ -150,32 +179,38 @@ defineExpose({
 
 <style scoped>
 .history-page {
-  padding: 0 16px;
+  padding: 0;
+}
+
+.caret {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-left: 2px;
 }
 
 /* 页面头部 */
 .header {
-  padding: 40px 8px 24px;
+  padding: 24px 20px;
   text-align: center;
 }
 
 .page-title {
   font-size: 24px;
   font-weight: 700;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 20px;
 }
 
 .today-stat {
-  background: linear-gradient(135deg, #ffe0ec 0%, #ffcbda 100%);
+  background: linear-gradient(135deg, var(--accent-light) 0%, var(--bg-tertiary) 100%);
   border-radius: 20px;
   padding: 24px 20px;
-  box-shadow: 0 4px 20px rgba(255, 122, 162, 0.15);
+  box-shadow: var(--shadow-md);
 }
 
 .stat-label {
   font-size: 14px;
-  color: #ff7aa2;
+  color: var(--accent-primary);
   font-weight: 500;
   margin-bottom: 8px;
 }
@@ -183,7 +218,7 @@ defineExpose({
 .stat-value {
   font-size: 40px;
   font-weight: 700;
-  color: #ff5588;
+  color: var(--accent-dark);
   line-height: 1.2;
 }
 
@@ -195,7 +230,7 @@ defineExpose({
 
 .stat-count {
   font-size: 13px;
-  color: #999;
+  color: var(--text-tertiary);
   margin-top: 6px;
 }
 
@@ -204,17 +239,17 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 8px 0 24px;
+  padding: 0 20px 24px;
 }
 
 .record-item {
-  background: #fff;
+  background: var(--bg-primary);
   border-radius: 16px;
   padding: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-sm);
   transition: transform 0.2s;
 }
 
@@ -234,7 +269,7 @@ defineExpose({
   align-items: center;
   gap: 6px;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .time-icon {
@@ -250,12 +285,12 @@ defineExpose({
 .amount-value {
   font-size: 24px;
   font-weight: 700;
-  color: #ff7aa2;
+  color: var(--accent-primary);
 }
 
 .amount-unit {
   font-size: 14px;
-  color: #999;
+  color: var(--text-tertiary);
   font-weight: 500;
 }
 
@@ -263,7 +298,7 @@ defineExpose({
   width: 40px;
   height: 40px;
   border: none;
-  background: #fff5f8;
+  background: var(--bg-secondary);
   border-radius: 50%;
   font-size: 18px;
   cursor: pointer;
@@ -275,7 +310,7 @@ defineExpose({
 }
 
 .delete-btn:active {
-  background: #ffe0ec;
+  background: var(--bg-tertiary);
   transform: scale(0.9);
 }
 
@@ -297,20 +332,20 @@ defineExpose({
 
 .empty-text {
   font-size: 18px;
-  color: #666;
+  color: var(--text-secondary);
   font-weight: 500;
   margin-bottom: 8px;
 }
 
 .empty-hint {
   font-size: 14px;
-  color: #bbb;
+  color: var(--text-tertiary);
 }
 
 /* 删除确认弹窗样式 */
 .delete-confirm-text {
   text-align: center;
-  color: #666;
+  color: var(--text-secondary);
   font-size: 15px;
   margin-bottom: 8px;
 }

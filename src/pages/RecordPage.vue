@@ -1,5 +1,21 @@
 <template>
   <div class="record-page page-container">
+    <!-- 顶部操作栏 -->
+    <div class="header-bar">
+      <div class="header-left">
+        <div class="baby-info" @click="$emit('openBabyManager')">
+          <span class="baby-avatar">{{ activeBaby.avatar }}</span>
+          <span class="baby-name">{{ activeBaby.name }}</span>
+          <span class="caret">▼</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="icon-btn" @click="$emit('toggleTheme')" :title="isDark ? '浅色模式' : '夜间模式'">
+          {{ isDark ? '☀️' : '🌙' }}
+        </button>
+      </div>
+    </div>
+
     <!-- 顶部时间显示区域 -->
     <div class="time-section">
       <div class="date-text">{{ currentDate }}</div>
@@ -84,15 +100,28 @@
  * 2. 点击圆形按钮弹出奶量输入框
  * 3. 支持快捷奶量选择
  * 4. 记录保存到 localStorage
+ * 5. 支持多宝宝切换和主题切换
  */
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { addRecord, getTodayTotal, getTodayCount, getLatestRecord } from '../utils/storage.js'
+import { addRecord, getTodayTotal, getTodayCount, getLatestRecord, getActiveBaby } from '../utils/storage.js'
+
+defineProps({
+  isDark: {
+    type: Boolean,
+    default: false
+  }
+})
+
+defineEmits(['openBabyManager', 'toggleTheme'])
 
 // 当前日期和时间
 const currentDate = ref('')
 const currentWeek = ref('')
 const currentTime = ref('')
 let timer = null
+
+// 当前宝宝
+const activeBaby = ref(getActiveBaby())
 
 // 弹窗相关
 const showModal = ref(false)
@@ -118,6 +147,7 @@ function loadStats() {
   todayTotal.value = getTodayTotal()
   todayCount.value = getTodayCount()
   latestRecord.value = getLatestRecord()
+  activeBaby.value = getActiveBaby()
 }
 
 /**
@@ -215,31 +245,38 @@ defineExpose({
   display: flex;
   flex-direction: column;
   min-height: 100%;
+  padding: 0;
+}
+
+.caret {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-left: 2px;
 }
 
 /* 时间显示区域 */
 .time-section {
   text-align: center;
-  padding: 60px 20px 40px;
+  padding: 40px 20px 40px;
 }
 
 .date-text {
   font-size: 18px;
-  color: #ff7aa2;
+  color: var(--accent-primary);
   font-weight: 500;
   margin-bottom: 8px;
 }
 
 .week-text {
   font-size: 14px;
-  color: #999;
+  color: var(--text-tertiary);
   margin-bottom: 12px;
 }
 
 .time-text {
   font-size: 48px;
   font-weight: 700;
-  color: #333;
+  color: var(--text-primary);
   letter-spacing: 2px;
   font-variant-numeric: tabular-nums;
 }
@@ -247,13 +284,13 @@ defineExpose({
 /* 今日统计卡片 */
 .today-summary {
   margin-top: 28px;
-  background: #fff;
+  background: var(--bg-primary);
   border-radius: 16px;
   padding: 18px 20px;
   display: flex;
   align-items: center;
   justify-content: space-around;
-  box-shadow: 0 2px 15px rgba(255, 122, 162, 0.1);
+  box-shadow: var(--shadow-sm);
 }
 
 .summary-item {
@@ -264,7 +301,7 @@ defineExpose({
 .summary-value {
   font-size: 26px;
   font-weight: 700;
-  color: #ff5588;
+  color: var(--accent-dark);
   line-height: 1.2;
 }
 
@@ -272,25 +309,25 @@ defineExpose({
   font-size: 13px;
   font-weight: 500;
   margin-left: 2px;
-  color: #ff7aa2;
+  color: var(--accent-primary);
 }
 
 .summary-label {
   font-size: 12px;
-  color: #999;
+  color: var(--text-tertiary);
   margin-top: 4px;
 }
 
 .summary-divider {
   width: 1px;
   height: 36px;
-  background: #f0f0f0;
+  background: var(--border-color);
 }
 
 /* 上次喂奶记录 */
 .last-feeding {
   margin-top: 16px;
-  background: linear-gradient(135deg, #fff5f8 0%, #ffeaf1 100%);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
   border-radius: 14px;
   padding: 14px 18px;
   text-align: left;
@@ -298,7 +335,7 @@ defineExpose({
 
 .last-label {
   font-size: 12px;
-  color: #ff7aa2;
+  color: var(--accent-primary);
   font-weight: 500;
   margin-bottom: 6px;
 }
@@ -311,13 +348,13 @@ defineExpose({
 
 .last-time {
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .last-amount {
   font-size: 18px;
   font-weight: 700;
-  color: #ff5588;
+  color: var(--accent-dark);
 }
 
 /* 记录按钮区域 */
@@ -335,8 +372,8 @@ defineExpose({
   height: 200px;
   border-radius: 50%;
   border: none;
-  background: linear-gradient(135deg, #ffb3c8 0%, #ff7aa2 50%, #ff5588 100%);
-  box-shadow: 0 10px 40px rgba(255, 122, 162, 0.4),
+  background: linear-gradient(135deg, var(--accent-secondary) 0%, var(--accent-primary) 50%, var(--accent-dark) 100%);
+  box-shadow: var(--shadow-btn),
     inset 0 2px 10px rgba(255, 255, 255, 0.3);
   cursor: pointer;
   display: flex;
@@ -354,7 +391,7 @@ defineExpose({
   right: -8px;
   bottom: -8px;
   border-radius: 50%;
-  border: 3px solid rgba(255, 122, 162, 0.3);
+  border: 3px solid var(--accent-light);
 }
 
 .record-btn:active {
@@ -385,7 +422,7 @@ defineExpose({
 .hint-text {
   margin-top: 32px;
   font-size: 14px;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 /* 快捷奶量选择 */
@@ -399,9 +436,9 @@ defineExpose({
 
 .quick-btn {
   padding: 8px 14px;
-  border: 1px solid #ffd6e3;
-  background: #fff5f8;
-  color: #ff7aa2;
+  border: 1px solid var(--input-border);
+  background: var(--bg-secondary);
+  color: var(--accent-primary);
   border-radius: 16px;
   font-size: 13px;
   cursor: pointer;
@@ -409,8 +446,8 @@ defineExpose({
 }
 
 .quick-btn:active {
-  background: #ff7aa2;
+  background: var(--accent-primary);
   color: #fff;
-  border-color: #ff7aa2;
+  border-color: var(--accent-primary);
 }
 </style>

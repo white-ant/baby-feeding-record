@@ -11,6 +11,14 @@
     </div>
     <div
       class="nav-item"
+      :class="{ active: activeTab === 'stats' }"
+      @click="$emit('change', 'stats')"
+    >
+      <div class="nav-icon">📊</div>
+      <div class="nav-text">统计</div>
+    </div>
+    <div
+      class="nav-item"
       :class="{ active: activeTab === 'history' }"
       @click="$emit('change', 'history')"
     >
@@ -45,11 +53,12 @@ defineEmits(['change'])
   left: 0;
   right: 0;
   height: 70px;
-  background: #fff;
+  background: var(--bg-primary);
   display: flex;
   box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.06);
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-color);
   z-index: 100;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .nav-item {
@@ -64,7 +73,7 @@ defineEmits(['change'])
 }
 
 .nav-item:active {
-  background: #fafafa;
+  background: var(--bg-secondary);
 }
 
 .nav-icon {
@@ -77,7 +86,7 @@ defineEmits(['change'])
 
 .nav-text {
   font-size: 12px;
-  color: #999;
+  color: var(--text-tertiary);
   transition: color 0.2s;
 }
 
@@ -88,7 +97,7 @@ defineEmits(['change'])
 }
 
 .nav-item.active .nav-text {
-  color: #ff7aa2;
+  color: var(--accent-primary);
   font-weight: 600;
 }
 
