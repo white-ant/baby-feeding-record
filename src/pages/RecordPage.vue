@@ -5,6 +5,28 @@
       <div class="date-text">{{ currentDate }}</div>
       <div class="week-text">{{ currentWeek }}</div>
       <div class="time-text">{{ currentTime }}</div>
+
+      <!-- 今日统计卡片 -->
+      <div class="today-summary">
+        <div class="summary-item">
+          <div class="summary-value">{{ todayCount }}</div>
+          <div class="summary-label">今日喂奶次数</div>
+        </div>
+        <div class="summary-divider"></div>
+        <div class="summary-item">
+          <div class="summary-value">{{ todayTotal }}<span class="summary-unit">ML</span></div>
+          <div class="summary-label">今日总奶量</div>
+        </div>
+      </div>
+
+      <!-- 上次喂奶记录 -->
+      <div v-if="latestRecord" class="last-feeding">
+        <div class="last-label">上次喂奶</div>
+        <div class="last-info">
+          <span class="last-time">⏰ {{ latestRecord.time }}</span>
+          <span class="last-amount">{{ latestRecord.amount }} ML</span>
+        </div>
+      </div>
     </div>
 
     <!-- 中间圆形记录按钮 -->
@@ -64,7 +86,7 @@
  * 4. 记录保存到 localStorage
  */
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { addRecord } from '../utils/storage.js'
+import { addRecord, getTodayTotal, getTodayCount, getLatestRecord } from '../utils/storage.js'
 
 // 当前日期和时间
 const currentDate = ref('')
@@ -83,6 +105,20 @@ const toastMessage = ref('')
 
 // 快捷奶量选项
 const quickAmounts = [30, 60, 90, 120, 150, 180]
+
+// 统计数据
+const todayTotal = ref(0)
+const todayCount = ref(0)
+const latestRecord = ref(null)
+
+/**
+ * 刷新统计数据
+ */
+function loadStats() {
+  todayTotal.value = getTodayTotal()
+  todayCount.value = getTodayCount()
+  latestRecord.value = getLatestRecord()
+}
 
 /**
  * 更新当前时间显示
@@ -142,6 +178,7 @@ function confirmRecord() {
 
   showModal.value = false
   amount.value = null
+  loadStats()
   showToastMessage('记录成功 🍼')
 }
 
@@ -156,6 +193,7 @@ watch(showModal, (val) => {
 
 onMounted(() => {
   updateTime()
+  loadStats()
   timer = setInterval(updateTime, 1000)
 })
 
@@ -164,6 +202,11 @@ onUnmounted(() => {
     clearInterval(timer)
     timer = null
   }
+})
+
+// 暴露刷新方法给父组件，切换标签时刷新
+defineExpose({
+  loadStats
 })
 </script>
 
@@ -199,6 +242,82 @@ onUnmounted(() => {
   color: #333;
   letter-spacing: 2px;
   font-variant-numeric: tabular-nums;
+}
+
+/* 今日统计卡片 */
+.today-summary {
+  margin-top: 28px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  box-shadow: 0 2px 15px rgba(255, 122, 162, 0.1);
+}
+
+.summary-item {
+  text-align: center;
+  flex: 1;
+}
+
+.summary-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: #ff5588;
+  line-height: 1.2;
+}
+
+.summary-unit {
+  font-size: 13px;
+  font-weight: 500;
+  margin-left: 2px;
+  color: #ff7aa2;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+}
+
+.summary-divider {
+  width: 1px;
+  height: 36px;
+  background: #f0f0f0;
+}
+
+/* 上次喂奶记录 */
+.last-feeding {
+  margin-top: 16px;
+  background: linear-gradient(135deg, #fff5f8 0%, #ffeaf1 100%);
+  border-radius: 14px;
+  padding: 14px 18px;
+  text-align: left;
+}
+
+.last-label {
+  font-size: 12px;
+  color: #ff7aa2;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.last-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.last-time {
+  font-size: 14px;
+  color: #666;
+}
+
+.last-amount {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ff5588;
 }
 
 /* 记录按钮区域 */

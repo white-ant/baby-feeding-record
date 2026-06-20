@@ -67,7 +67,7 @@
  * 4. 空状态展示
  */
 import { ref, computed, onMounted } from 'vue'
-import { getRecords, deleteRecord, getTodayTotal } from '../utils/storage.js'
+import { getRecords, deleteRecord, getTodayTotal, getTodayCount } from '../utils/storage.js'
 
 // 记录列表
 const records = ref([])
@@ -81,18 +81,14 @@ const showToast = ref(false)
 const toastMessage = ref('')
 
 /**
- * 今日总奶量
+ * 今日总奶量 - 基于 records.value 计算，确保数据刷新时自动更新
  */
-const todayTotal = computed(() => getTodayTotal())
+const todayTotal = computed(() => getTodayTotal(records.value))
 
 /**
- * 今日喂奶次数
+ * 今日喂奶次数 - 基于 records.value 计算
  */
-const todayCount = computed(() => {
-  const today = new Date()
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-  return records.value.filter((r) => r.time && r.time.startsWith(todayStr)).length
-})
+const todayCount = computed(() => getTodayCount(records.value))
 
 /**
  * 刷新记录列表

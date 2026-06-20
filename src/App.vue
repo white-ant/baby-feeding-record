@@ -1,7 +1,7 @@
 <template>
   <!-- 主应用组件 - 管理页面切换 -->
   <div class="app-wrapper">
-    <RecordPage v-show="activeTab === 'record'" />
+    <RecordPage v-show="activeTab === 'record'" ref="recordPageRef" />
     <HistoryPage v-show="activeTab === 'history'" ref="historyPageRef" />
     <BottomNav :active-tab="activeTab" @change="handleTabChange" />
   </div>
@@ -20,6 +20,7 @@ import RecordPage from './pages/RecordPage.vue'
 import HistoryPage from './pages/HistoryPage.vue'
 
 const activeTab = ref('record')
+const recordPageRef = ref(null)
 const historyPageRef = ref(null)
 
 /**
@@ -28,6 +29,10 @@ const historyPageRef = ref(null)
  */
 function handleTabChange(tab) {
   activeTab.value = tab
+  // 切换到记录页面时刷新统计数据
+  if (tab === 'record' && recordPageRef.value) {
+    recordPageRef.value.loadStats()
+  }
   // 切换到查看页面时刷新数据
   if (tab === 'history' && historyPageRef.value) {
     historyPageRef.value.loadRecords()

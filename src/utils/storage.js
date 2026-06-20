@@ -70,14 +70,40 @@ export function deleteRecord(id) {
 
 /**
  * 获取今日总奶量
+ * @param {Array} records 可选，传入已读取的记录数组以避免重复读取
  * @returns {number} 今日喂奶总量（ML）
  */
-export function getTodayTotal() {
-  const records = getRecords()
+export function getTodayTotal(records) {
+  const list = records || getRecords()
   const today = new Date()
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
-  return records
+  return list
     .filter((r) => r.time && r.time.startsWith(todayStr))
     .reduce((sum, r) => sum + Number(r.amount || 0), 0)
+}
+
+/**
+ * 获取今日喂奶次数
+ * @param {Array} records 可选，传入已读取的记录数组
+ * @returns {number} 今日喂奶次数
+ */
+export function getTodayCount(records) {
+  const list = records || getRecords()
+  const today = new Date()
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+  return list.filter((r) => r.time && r.time.startsWith(todayStr)).length
+}
+
+/**
+ * 获取最近一次喂奶记录
+ * @returns {Object|null} 最近的喂奶记录，没有则返回 null
+ */
+export function getLatestRecord() {
+  const records = getRecords()
+  if (records.length === 0) return null
+  return records.reduce((latest, r) =>
+    r.timestamp > latest.timestamp ? r : latest
+  , records[0])
 }
