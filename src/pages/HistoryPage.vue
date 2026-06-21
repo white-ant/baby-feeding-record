@@ -1,32 +1,19 @@
 <template>
   <div class="history-page page-container">
-    <!-- 顶部操作栏 -->
-    <div class="header-bar">
-      <div class="header-left">
-        <div class="baby-info" @click="$emit('openBabyManager')">
-          <span class="baby-avatar">{{ activeBaby.avatar }}</span>
-          <span class="baby-name">{{ activeBaby.name }}</span>
-          <span class="caret">▼</span>
-        </div>
-      </div>
-      <div class="header-right">
-        <button class="icon-btn" @click="$emit('toggleTheme')" :title="isDark ? '浅色模式' : '夜间模式'">
-          {{ isDark ? '☀️' : '🌙' }}
-        </button>
-      </div>
-    </div>
-
-    <!-- 页面标题和今日统计 -->
     <div class="header">
       <h1 class="page-title">喂奶记录</h1>
-      <div class="today-stat">
-        <div class="stat-label">今日已喂奶</div>
-        <div class="stat-value">{{ todayTotal }} <span class="stat-unit">ML</span></div>
-        <div class="stat-count">共 {{ todayCount }} 次</div>
+      <div v-if="babyStore.currentBaby" class="baby-name">👶 {{ babyStore.currentBaby.name }}</div>
+      <div class="filters">
+        <input
+          v-model="filterDate"
+          type="date"
+          class="date-filter"
+          @change="loadRecords"
+        />
+        <button class="export-btn" @click="exportExcel">📥 导出Excel</button>
       </div>
     </div>
 
-    <!-- 记录列表 -->
     <div v-if="records.length > 0" class="record-list">
       <div
         v-for="record in records"
@@ -36,27 +23,29 @@
         <div class="record-info">
           <div class="record-time">
             <span class="time-icon">⏰</span>
-            {{ record.time }}
+            {{ formatTime(record.feeding_time) }}
           </div>
           <div class="record-amount">
-            <span class="amount-value">{{ record.amount }}</span>
+            <span class="amount-value">{{ record.milk_amount }}</span>
             <span class="amount-unit">ML</span>
           </div>
         </div>
-        <button class="delete-btn" @click="handleDelete(record)">
+        <button
+          v-if="canDelete(record)"
+          class="delete-btn"
+          @click="handleDelete(record)"
+        >
           🗑️
         </button>
       </div>
     </div>
 
-    <!-- 空状态 -->
     <div v-else class="empty-state">
       <div class="empty-icon">🍼</div>
       <div class="empty-text">暂无喂奶记录</div>
       <div class="empty-hint">快去记录宝宝的第一次喂奶吧~</div>
     </div>
 
-    <!-- 删除确认弹窗 -->
     <div v-if="showDeleteModal" class="modal-mask" @click.self="showDeleteModal = false">
       <div class="modal-content" @click.stop>
         <h3 class="modal-title">确认删除</h3>
@@ -68,188 +57,187 @@
       </div>
     </div>
 
-    <!-- Toast 提示 -->
     <div v-if="showToast" class="toast">{{ toastMessage }}</div>
   </div>
 </template>
 
 <script setup>
-/**
- * 查看页面 - 展示所有喂奶记录
- * 功能：
- * 1. 显示今日总奶量统计
- * 2. 列表展示所有喂奶记录（按时间倒序）
- * 3. 支持删除单条记录
- * 4. 空状态展示
- * 5. 支持多宝宝切换和主题切换
- */
 import { ref, computed, onMounted } from 'vue'
-import { getRecords, deleteRecord, getTodayTotal, getTodayCount, getActiveBaby } from '../utils/storage.js'
+import { useBabyStore } from '@/stores/baby'
+import { useAuthStore } from '@/stores/auth'
+import { getRecords, deleteRecord } from '@/api/records'
+import * as XLSX from 'xlsx'
 
-defineProps({
-  isDark: {
-    type: Boolean,
-    default: false
-  }
-})
+const babyStore = useBabyStore()
+const authStore = useAuthStore()
 
-defineEmits(['openBabyManager', 'toggleTheme'])
-
-// 记录列表
 const records = ref([])
-// 当前宝宝
-const activeBaby = ref(getActiveBaby())
+const filterDate = ref('')
 
-// 删除相关
 const showDeleteModal = ref(false)
 const deletingRecord = ref(null)
 
-// Toast 提示
 const showToast = ref(false)
 const toastMessage = ref('')
 
-/**
- * 今日总奶量 - 基于 records.value 计算，确保数据刷新时自动更新
- */
-const todayTotal = computed(() => getTodayTotal(records.value))
-
-/**
- * 今日喂奶次数 - 基于 records.value 计算
- */
-const todayCount = computed(() => getTodayCount(records.value))
-
-/**
- * 刷新记录列表
- */
-function loadRecords() {
-  const list = getRecords()
-  list.sort((a, b) => b.timestamp - a.timestamp)
-  records.value = list
-  activeBaby.value = getActiveBaby()
-}
-
-/**
- * 显示 Toast 提示
- * @param {string} message 提示内容
- * @param {number} duration 显示时长（毫秒）
- */
-function showToastMessage(message, duration = 2000) {
-  toastMessage.value = message
+function toast(msg, duration = 2000) {
+  toastMessage.value = msg
   showToast.value = true
-  setTimeout(() => {
-    showToast.value = false
-  }, duration)
+  setTimeout(() => { showToast.value = false }, duration)
 }
 
-/**
- * 点击删除按钮
- * @param {Object} record 要删除的记录
- */
+function formatTime(dateTimeStr) {
+  if (!dateTimeStr) return ''
+  const d = new Date(dateTimeStr)
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hours = String(d.getHours()).padStart(2, '0')
+  const minutes = String(d.getMinutes()).padStart(2, '0')
+  return `${month}-${day} ${hours}:${minutes}`
+}
+
+function canDelete(record) {
+  if (babyStore.currentBabyPermission === 'view') return false
+  if (babyStore.isOwner) return true
+  return record.user_id === authStore.user?.id
+}
+
+async function loadRecords() {
+  if (!babyStore.currentBaby) return
+  try {
+    const date = filterDate.value || undefined
+    const data = await getRecords(babyStore.currentBaby.id, date)
+    records.value = data
+  } catch (e) {
+    toast(e.message || '加载失败')
+  }
+}
+
 function handleDelete(record) {
   deletingRecord.value = record
   showDeleteModal.value = true
 }
 
-/**
- * 确认删除
- */
-function confirmDelete() {
-  if (deletingRecord.value) {
-    const success = deleteRecord(deletingRecord.value.id)
-    if (success) {
-      loadRecords()
-      showToastMessage('删除成功')
-    } else {
-      showToastMessage('删除失败')
-    }
+async function confirmDelete() {
+  if (!deletingRecord.value || !babyStore.currentBaby) return
+  try {
+    await deleteRecord(babyStore.currentBaby.id, deletingRecord.value.id)
+    toast('删除成功')
+    await loadRecords()
+  } catch (e) {
+    toast(e.message || '删除失败')
   }
   showDeleteModal.value = false
   deletingRecord.value = null
+}
+
+function exportExcel() {
+  if (records.value.length === 0) {
+    toast('暂无记录可导出')
+    return
+  }
+  const babyName = babyStore.currentBaby?.name || 'unknown'
+  const date = filterDate.value || new Date().toISOString().slice(0, 10)
+  const data = records.value.map(r => ({
+    '宝宝名称': babyName,
+    '喂奶时间': r.feeding_time,
+    '奶量ML': r.milk_amount,
+    '记录人': r.user_id,
+    '创建时间': r.created_at
+  }))
+  const ws = XLSX.utils.json_to_sheet(data)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, '喂奶记录')
+  XLSX.writeFile(wb, `baby-feeding-record-${babyName}-${date}.xlsx`)
+  toast('导出成功')
 }
 
 onMounted(() => {
   loadRecords()
 })
 
-// 暴露刷新方法给父组件，切换标签时刷新
-defineExpose({
-  loadRecords
-})
+defineExpose({ loadRecords })
 </script>
 
 <style scoped>
 .history-page {
-  padding: 0;
+  padding: 0 16px;
 }
 
-.caret {
-  font-size: 10px;
-  color: var(--text-tertiary);
-  margin-left: 2px;
-}
-
-/* 页面头部 */
 .header {
-  padding: 24px 20px;
+  padding: 40px 8px 24px;
   text-align: center;
 }
 
 .page-title {
   font-size: 24px;
   font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 20px;
-}
-
-.today-stat {
-  background: linear-gradient(135deg, var(--accent-light) 0%, var(--bg-tertiary) 100%);
-  border-radius: 20px;
-  padding: 24px 20px;
-  box-shadow: var(--shadow-md);
-}
-
-.stat-label {
-  font-size: 14px;
-  color: var(--accent-primary);
-  font-weight: 500;
+  color: var(--text-color);
   margin-bottom: 8px;
 }
 
-.stat-value {
-  font-size: 40px;
-  font-weight: 700;
-  color: var(--accent-dark);
-  line-height: 1.2;
-}
-
-.stat-unit {
-  font-size: 18px;
+.baby-name {
+  font-size: 14px;
+  color: var(--primary);
   font-weight: 500;
-  margin-left: 2px;
+  margin-bottom: 16px;
 }
 
-.stat-count {
-  font-size: 13px;
-  color: var(--text-tertiary);
-  margin-top: 6px;
+.filters {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
 }
 
-/* 记录列表 */
+.date-filter {
+  height: 40px;
+  border: 2px solid var(--input-border);
+  border-radius: 12px;
+  padding: 0 12px;
+  font-size: 14px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  outline: none;
+}
+
+.date-filter:focus {
+  border-color: var(--primary);
+}
+
+.export-btn {
+  height: 40px;
+  padding: 0 16px;
+  background: linear-gradient(135deg, #ff9ebb 0%, #ff7aa2 100%);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.2s;
+}
+
+.export-btn:active {
+  transform: scale(0.96);
+}
+
 .record-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 0 20px 24px;
+  padding: 8px 0 24px;
 }
 
 .record-item {
-  background: var(--bg-primary);
+  background: var(--card-bg);
   border-radius: 16px;
   padding: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   transition: transform 0.2s;
 }
 
@@ -285,12 +273,12 @@ defineExpose({
 .amount-value {
   font-size: 24px;
   font-weight: 700;
-  color: var(--accent-primary);
+  color: var(--primary);
 }
 
 .amount-unit {
   font-size: 14px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -298,7 +286,7 @@ defineExpose({
   width: 40px;
   height: 40px;
   border: none;
-  background: var(--bg-secondary);
+  background: var(--primary-light);
   border-radius: 50%;
   font-size: 18px;
   cursor: pointer;
@@ -310,11 +298,10 @@ defineExpose({
 }
 
 .delete-btn:active {
-  background: var(--bg-tertiary);
+  background: #ffe0ec;
   transform: scale(0.9);
 }
 
-/* 空状态 */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -332,17 +319,16 @@ defineExpose({
 
 .empty-text {
   font-size: 18px;
-  color: var(--text-secondary);
+  color: var(--text-color);
   font-weight: 500;
   margin-bottom: 8px;
 }
 
 .empty-hint {
   font-size: 14px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
-/* 删除确认弹窗样式 */
 .delete-confirm-text {
   text-align: center;
   color: var(--text-secondary);

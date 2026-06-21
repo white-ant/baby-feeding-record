@@ -1,62 +1,52 @@
 <template>
   <div class="record-page page-container">
-    <!-- 顶部操作栏 -->
-    <div class="header-bar">
-      <div class="header-left">
-        <div class="baby-info" @click="$emit('openBabyManager')">
-          <span class="baby-avatar">{{ activeBaby.avatar }}</span>
-          <span class="baby-name">{{ activeBaby.name }}</span>
-          <span class="caret">▼</span>
-        </div>
-      </div>
-      <div class="header-right">
-        <button class="icon-btn" @click="$emit('toggleTheme')" :title="isDark ? '浅色模式' : '夜间模式'">
-          {{ isDark ? '☀️' : '🌙' }}
-        </button>
-      </div>
-    </div>
-
-    <!-- 顶部时间显示区域 -->
     <div class="time-section">
+      <div v-if="babyStore.currentBaby" class="baby-name">👶 {{ babyStore.currentBaby.name }}</div>
       <div class="date-text">{{ currentDate }}</div>
       <div class="week-text">{{ currentWeek }}</div>
       <div class="time-text">{{ currentTime }}</div>
 
-      <!-- 今日统计卡片 -->
       <div class="today-summary">
         <div class="summary-item">
-          <div class="summary-value">{{ todayCount }}</div>
-          <div class="summary-label">今日喂奶次数</div>
+          <div class="summary-value">{{ todayTotal }}<span class="summary-unit">ML</span></div>
+          <div class="summary-label">总奶量</div>
         </div>
         <div class="summary-divider"></div>
         <div class="summary-item">
-          <div class="summary-value">{{ todayTotal }}<span class="summary-unit">ML</span></div>
-          <div class="summary-label">今日总奶量</div>
+          <div class="summary-value">{{ todayCount }}</div>
+          <div class="summary-label">喂奶次数</div>
+        </div>
+        <div class="summary-divider"></div>
+        <div class="summary-item">
+          <div class="summary-value">{{ avgPerFeed }}<span class="summary-unit">ML</span></div>
+          <div class="summary-label">平均每次</div>
         </div>
       </div>
 
-      <!-- 上次喂奶记录 -->
       <div v-if="latestRecord" class="last-feeding">
         <div class="last-label">上次喂奶</div>
         <div class="last-info">
-          <span class="last-time">⏰ {{ latestRecord.time }}</span>
-          <span class="last-amount">{{ latestRecord.amount }} ML</span>
+          <span class="last-time">⏰ {{ formatTime(latestRecord.feeding_time) }}</span>
+          <span class="last-amount">{{ latestRecord.milk_amount }} ML</span>
         </div>
       </div>
     </div>
 
-    <!-- 中间圆形记录按钮 -->
     <div class="button-section">
-      <button class="record-btn" @click="showModal = true">
-        <div class="record-btn-inner">
-          <div class="record-icon">🍼</div>
-          <div class="record-text">记录喂奶</div>
-        </div>
-      </button>
-      <p class="hint-text">点击按钮记录宝宝的喂奶情况</p>
+      <template v-if="isViewOnly">
+        <div class="view-only-hint">当前账号只有查看权限</div>
+      </template>
+      <template v-else>
+        <button class="record-btn" @click="showModal = true">
+          <div class="record-btn-inner">
+            <div class="record-icon">🍼</div>
+            <div class="record-text">记录喂奶</div>
+          </div>
+        </button>
+        <p class="hint-text">点击按钮记录宝宝的喂奶情况</p>
+      </template>
     </div>
 
-    <!-- 输入奶量弹窗 -->
     <div v-if="showModal" class="modal-mask" @click.self="showModal = false">
       <div class="modal-content" @click.stop>
         <h3 class="modal-title">请输入奶量（ML）</h3>
@@ -75,6 +65,7 @@
             v-for="quick in quickAmounts"
             :key="quick"
             class="quick-btn"
+            :class="{ active: amount === quick }"
             @click="amount = quick"
           >
             {{ quick }} ML
@@ -82,77 +73,87 @@
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" @click="showModal = false">取消</button>
-          <button class="btn-primary" @click="confirmRecord">确认</button>
+          <button class="btn-primary" :disabled="submitting" @click="confirmRecord">
+            {{ submitting ? '提交中...' : '确认' }}
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- Toast 提示 -->
     <div v-if="showToast" class="toast">{{ toastMessage }}</div>
   </div>
 </template>
 
 <script setup>
-/**
- * 记录页面 - 用于记录喂奶时间和奶量
- * 功能：
- * 1. 实时显示当前日期和时间
- * 2. 点击圆形按钮弹出奶量输入框
- * 3. 支持快捷奶量选择
- * 4. 记录保存到 localStorage
- * 5. 支持多宝宝切换和主题切换
- */
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { addRecord, getTodayTotal, getTodayCount, getLatestRecord, getActiveBaby } from '../utils/storage.js'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { useBabyStore } from '@/stores/baby'
+import { getRecords, addRecord } from '@/api/records'
 
-defineProps({
-  isDark: {
-    type: Boolean,
-    default: false
-  }
-})
+const babyStore = useBabyStore()
 
-defineEmits(['openBabyManager', 'toggleTheme'])
-
-// 当前日期和时间
 const currentDate = ref('')
 const currentWeek = ref('')
 const currentTime = ref('')
 let timer = null
 
-// 当前宝宝
-const activeBaby = ref(getActiveBaby())
-
-// 弹窗相关
 const showModal = ref(false)
 const amount = ref(null)
 const amountInput = ref(null)
+const submitting = ref(false)
 
-// Toast 提示
 const showToast = ref(false)
 const toastMessage = ref('')
 
-// 快捷奶量选项
 const quickAmounts = [30, 60, 90, 120, 150, 180]
 
-// 统计数据
-const todayTotal = ref(0)
-const todayCount = ref(0)
-const latestRecord = ref(null)
+const records = ref([])
+const latestRecord = computed(() => records.value.length > 0 ? records.value[0] : null)
 
-/**
- * 刷新统计数据
- */
-function loadStats() {
-  todayTotal.value = getTodayTotal()
-  todayCount.value = getTodayCount()
-  latestRecord.value = getLatestRecord()
-  activeBaby.value = getActiveBaby()
+const todayTotal = computed(() => {
+  const today = getTodayStr()
+  return records.value
+    .filter(r => startsWithDate(r.feeding_time, today))
+    .reduce((sum, r) => sum + Number(r.milk_amount || 0), 0)
+})
+
+const todayCount = computed(() => {
+  const today = getTodayStr()
+  return records.value.filter(r => startsWithDate(r.feeding_time, today)).length
+})
+
+const avgPerFeed = computed(() => {
+  if (todayCount.value === 0) return 0
+  return Math.round(todayTotal.value / todayCount.value)
+})
+
+const isViewOnly = computed(() => babyStore.currentBabyPermission === 'view')
+
+function getTodayStr() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
-/**
- * 更新当前时间显示
- */
+function startsWithDate(dateTimeStr, dateStr) {
+  return dateTimeStr && dateTimeStr.startsWith(dateStr)
+}
+
+function formatTime(dateTimeStr) {
+  if (!dateTimeStr) return ''
+  const d = new Date(dateTimeStr)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+async function loadStats() {
+  if (!babyStore.currentBaby) return
+  try {
+    const data = await getRecords(babyStore.currentBaby.id)
+    data.sort((a, b) => new Date(b.feeding_time) - new Date(a.feeding_time))
+    records.value = data
+  } catch (e) {
+    // silently fail
+  }
+}
+
 function updateTime() {
   const now = new Date()
   const year = now.getFullYear()
@@ -169,50 +170,46 @@ function updateTime() {
   currentWeek.value = weeks[now.getDay()]
 }
 
-/**
- * 显示 Toast 提示
- * @param {string} message 提示内容
- * @param {number} duration 显示时长（毫秒）
- */
-function showToastMessage(message, duration = 2000) {
-  toastMessage.value = message
+function toast(msg, duration = 2000) {
+  toastMessage.value = msg
   showToast.value = true
-  setTimeout(() => {
-    showToast.value = false
-  }, duration)
+  setTimeout(() => { showToast.value = false }, duration)
 }
 
-/**
- * 确认记录喂奶
- */
-function confirmRecord() {
+async function confirmRecord() {
   const amountNum = Number(amount.value)
   if (!amountNum || amountNum <= 0) {
-    showToastMessage('请输入有效的奶量')
+    toast('请输入有效的奶量')
     return
   }
   if (amountNum > 1000) {
-    showToastMessage('奶量不能超过 1000 ML')
+    toast('奶量不能超过 1000 ML')
+    return
+  }
+  if (!babyStore.currentBaby) {
+    toast('请先选择宝宝')
     return
   }
 
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  const hours = String(now.getHours()).padStart(2, '0')
-  const minutes = String(now.getMinutes()).padStart(2, '0')
-  const timeStr = `${year}-${month}-${day} ${hours}:${minutes}`
-
-  addRecord(amountNum, timeStr, now.getTime())
-
-  showModal.value = false
-  amount.value = null
-  loadStats()
-  showToastMessage('记录成功 🍼')
+  submitting.value = true
+  try {
+    const now = new Date()
+    const feedingTime = now.toISOString().slice(0, 19).replace('T', ' ')
+    await addRecord(babyStore.currentBaby.id, {
+      milk_amount: amountNum,
+      feeding_time: feedingTime
+    })
+    showModal.value = false
+    amount.value = null
+    await loadStats()
+    toast('记录成功 🍼')
+  } catch (e) {
+    toast(e.message || '记录失败')
+  } finally {
+    submitting.value = false
+  }
 }
 
-// 监听弹窗打开，自动聚焦输入框
 watch(showModal, (val) => {
   if (val) {
     nextTick(() => {
@@ -234,10 +231,7 @@ onUnmounted(() => {
   }
 })
 
-// 暴露刷新方法给父组件，切换标签时刷新
-defineExpose({
-  loadStats
-})
+defineExpose({ loadStats })
 </script>
 
 <style scoped>
@@ -245,52 +239,50 @@ defineExpose({
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  padding: 0;
 }
 
-.caret {
-  font-size: 10px;
-  color: var(--text-tertiary);
-  margin-left: 2px;
-}
-
-/* 时间显示区域 */
 .time-section {
   text-align: center;
-  padding: 40px 20px 40px;
+  padding: 60px 20px 40px;
+}
+
+.baby-name {
+  font-size: 16px;
+  color: var(--primary);
+  font-weight: 600;
+  margin-bottom: 12px;
 }
 
 .date-text {
   font-size: 18px;
-  color: var(--accent-primary);
+  color: var(--primary);
   font-weight: 500;
   margin-bottom: 8px;
 }
 
 .week-text {
   font-size: 14px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   margin-bottom: 12px;
 }
 
 .time-text {
   font-size: 48px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--text-color);
   letter-spacing: 2px;
   font-variant-numeric: tabular-nums;
 }
 
-/* 今日统计卡片 */
 .today-summary {
   margin-top: 28px;
-  background: var(--bg-primary);
+  background: var(--card-bg);
   border-radius: 16px;
   padding: 18px 20px;
   display: flex;
   align-items: center;
   justify-content: space-around;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 15px rgba(255, 122, 162, 0.1);
 }
 
 .summary-item {
@@ -299,22 +291,22 @@ defineExpose({
 }
 
 .summary-value {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 700;
-  color: var(--accent-dark);
+  color: var(--primary-dark);
   line-height: 1.2;
 }
 
 .summary-unit {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   margin-left: 2px;
-  color: var(--accent-primary);
+  color: var(--primary);
 }
 
 .summary-label {
-  font-size: 12px;
-  color: var(--text-tertiary);
+  font-size: 11px;
+  color: var(--text-secondary);
   margin-top: 4px;
 }
 
@@ -324,10 +316,9 @@ defineExpose({
   background: var(--border-color);
 }
 
-/* 上次喂奶记录 */
 .last-feeding {
   margin-top: 16px;
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  background: var(--primary-light);
   border-radius: 14px;
   padding: 14px 18px;
   text-align: left;
@@ -335,7 +326,7 @@ defineExpose({
 
 .last-label {
   font-size: 12px;
-  color: var(--accent-primary);
+  color: var(--primary);
   font-weight: 500;
   margin-bottom: 6px;
 }
@@ -354,10 +345,9 @@ defineExpose({
 .last-amount {
   font-size: 18px;
   font-weight: 700;
-  color: var(--accent-dark);
+  color: var(--primary-dark);
 }
 
-/* 记录按钮区域 */
 .button-section {
   flex: 1;
   display: flex;
@@ -372,8 +362,8 @@ defineExpose({
   height: 200px;
   border-radius: 50%;
   border: none;
-  background: linear-gradient(135deg, var(--accent-secondary) 0%, var(--accent-primary) 50%, var(--accent-dark) 100%);
-  box-shadow: var(--shadow-btn),
+  background: linear-gradient(135deg, #ffb3c8 0%, #ff7aa2 50%, #ff5588 100%);
+  box-shadow: 0 10px 40px var(--primary-shadow),
     inset 0 2px 10px rgba(255, 255, 255, 0.3);
   cursor: pointer;
   display: flex;
@@ -391,12 +381,12 @@ defineExpose({
   right: -8px;
   bottom: -8px;
   border-radius: 50%;
-  border: 3px solid var(--accent-light);
+  border: 3px solid rgba(255, 122, 162, 0.3);
 }
 
 .record-btn:active {
   transform: scale(0.95);
-  box-shadow: 0 5px 20px rgba(255, 122, 162, 0.3),
+  box-shadow: 0 5px 20px var(--primary-shadow),
     inset 0 2px 10px rgba(255, 255, 255, 0.3);
 }
 
@@ -422,10 +412,19 @@ defineExpose({
 .hint-text {
   margin-top: 32px;
   font-size: 14px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
-/* 快捷奶量选择 */
+.view-only-hint {
+  background: var(--card-bg);
+  border-radius: 16px;
+  padding: 24px 32px;
+  font-size: 16px;
+  color: var(--text-secondary);
+  text-align: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
 .quick-amounts {
   display: flex;
   flex-wrap: wrap;
@@ -436,18 +435,19 @@ defineExpose({
 
 .quick-btn {
   padding: 8px 14px;
-  border: 1px solid var(--input-border);
-  background: var(--bg-secondary);
-  color: var(--accent-primary);
+  border: 1px solid var(--primary-border);
+  background: var(--primary-light);
+  color: var(--primary);
   border-radius: 16px;
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.quick-btn:active {
-  background: var(--accent-primary);
+.quick-btn:active,
+.quick-btn.active {
+  background: var(--primary);
   color: #fff;
-  border-color: var(--accent-primary);
+  border-color: var(--primary);
 }
 </style>

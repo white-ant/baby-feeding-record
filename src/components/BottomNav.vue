@@ -1,49 +1,35 @@
 <template>
-  <!-- 底部导航栏 -->
   <nav class="bottom-nav">
-    <div
+    <router-link
+      v-for="item in navItems"
+      :key="item.path"
+      :to="item.path"
       class="nav-item"
-      :class="{ active: activeTab === 'record' }"
-      @click="$emit('change', 'record')"
+      :class="{ active: isActive(item.path) }"
     >
-      <div class="nav-icon">📝</div>
-      <div class="nav-text">记录</div>
-    </div>
-    <div
-      class="nav-item"
-      :class="{ active: activeTab === 'stats' }"
-      @click="$emit('change', 'stats')"
-    >
-      <div class="nav-icon">📊</div>
-      <div class="nav-text">统计</div>
-    </div>
-    <div
-      class="nav-item"
-      :class="{ active: activeTab === 'history' }"
-      @click="$emit('change', 'history')"
-    >
-      <div class="nav-icon">📋</div>
-      <div class="nav-text">查看</div>
-    </div>
+      <div class="nav-icon">{{ item.icon }}</div>
+      <div class="nav-text">{{ item.label }}</div>
+    </router-link>
   </nav>
 </template>
 
 <script setup>
-/**
- * 底部导航栏组件
- * 通过 activeTab prop 控制当前选中项
- * 通过 change 事件通知父组件切换
- */
-import { defineProps, defineEmits } from 'vue'
+import { useRoute } from 'vue-router'
 
-defineProps({
-  activeTab: {
-    type: String,
-    default: 'record'
-  }
-})
+const route = useRoute()
 
-defineEmits(['change'])
+const navItems = [
+  { path: '/', icon: '📝', label: '记录' },
+  { path: '/history', icon: '📋', label: '查看' },
+  { path: '/stats', icon: '📊', label: '统计' },
+  { path: '/babies', icon: '👶', label: '宝宝' },
+  { path: '/profile', icon: '👤', label: '我的' },
+]
+
+function isActive(path) {
+  if (path === '/') return route.path === '/'
+  return route.path.startsWith(path)
+}
 </script>
 
 <style scoped>
@@ -53,12 +39,11 @@ defineEmits(['change'])
   left: 0;
   right: 0;
   height: 70px;
-  background: var(--bg-primary);
+  background: var(--nav-bg);
   display: flex;
   box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.06);
   border-top: 1px solid var(--border-color);
   z-index: 100;
-  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .nav-item {
@@ -70,10 +55,11 @@ defineEmits(['change'])
   cursor: pointer;
   transition: background 0.2s;
   gap: 4px;
+  text-decoration: none;
 }
 
 .nav-item:active {
-  background: var(--bg-secondary);
+  background: var(--border-color);
 }
 
 .nav-icon {
@@ -86,7 +72,7 @@ defineEmits(['change'])
 
 .nav-text {
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   transition: color 0.2s;
 }
 
@@ -97,11 +83,10 @@ defineEmits(['change'])
 }
 
 .nav-item.active .nav-text {
-  color: var(--accent-primary);
+  color: var(--primary);
   font-weight: 600;
 }
 
-/* PC 端适配，跟随 #app 宽度 */
 @media (min-width: 768px) {
   .bottom-nav {
     max-width: 480px;
